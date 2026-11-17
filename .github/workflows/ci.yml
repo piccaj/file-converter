@@ -19,6 +19,9 @@ jobs:
           java-version: '21'
           cache: maven
 
+      - name: Install native converters (ffmpeg, libheif)
+        run: sudo apt-get update -q && sudo apt-get install -y -q ffmpeg libheif-examples
+
       - name: Build and test
         run: mvn -B verify --file pom.xml
 

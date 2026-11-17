@@ -27,15 +27,35 @@ public class ConversionService {
     public record Conversion(byte[] data, ImageFormat sourceFormat, ImageFormat targetFormat) {
     }
 
+    private final NativeConverterService nativeConverter;
+
+    public ConversionService(NativeConverterService nativeConverter) {
+        this.nativeConverter = nativeConverter;
+    }
+
     public Conversion convert(byte[] input, String targetName) throws IOException, UnsupportedConversionException {
         ImageFormat target = ImageFormat.fromName(targetName);
-        if (target == null) {
+        if (target == null || !target.isImageTarget()) {
             throw new UnsupportedConversionException("unknown target format: " + targetName);
         }
 
         ImageFormat source = ImageFormat.detect(take(input, 16));
         if (source == null) {
             throw new UnsupportedConversionException("unrecognized input format — magic bytes don't match any supported type");
+        }
+
+        if (source == ImageFormat.MP4) {
+            throw new UnsupportedConversionException(
+                    "video files can only be converted to mp3 — pick the MP3 target");
+        }
+
+        if (source.isNativeOnly()) {
+            // HEIC/AVIF: the JDK can't decode these; libheif can. It decodes to
+            // PNG, then this same method re-runs on the decoded bytes, which
+            // flow through the standard ImageIO path (alpha flattening for JPG
+            // included) — so HEIC→JPG keeps transparent-pixels-become-white.
+            byte[] decoded = nativeConverter.decodeToPng(input, source.extension());
+            return convert(decoded, targetName);
         }
 
         BufferedImage image = ImageIO.read(new ByteArrayInputStream(input));

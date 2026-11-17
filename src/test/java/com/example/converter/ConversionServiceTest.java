@@ -11,7 +11,9 @@ import org.junit.jupiter.api.Test;
 
 class ConversionServiceTest {
 
-    private final ConversionService service = new ConversionService();
+    // no ffmpeg/ImageMagick on the test PATH: exercises the clear-error paths
+    private final ConversionService service =
+            new ConversionService(new NativeConverterService());
 
     @Test
     void convertsPngToJpgAndFlattensTransparency() throws Exception {
@@ -71,6 +73,13 @@ class ConversionServiceTest {
     void rejectsUnknownTarget() throws Exception {
         byte[] png = renderBytes("png", new BufferedImage(6, 6, BufferedImage.TYPE_INT_ARGB));
         assertThatThrownBy(() -> service.convert(png, "heic"))
+                .isInstanceOf(UnsupportedConversionException.class); // heic is input-only now
+    }
+
+    @Test
+    void rejectsMp4AsTarget() throws Exception {
+        byte[] png = renderBytes("png", new BufferedImage(6, 6, BufferedImage.TYPE_INT_ARGB));
+        assertThatThrownBy(() -> service.convert(png, "mp4"))
                 .isInstanceOf(UnsupportedConversionException.class);
     }
 
@@ -95,7 +104,41 @@ class ConversionServiceTest {
                 .isInstanceOf(UnsupportedConversionException.class);
     }
 
+    @Test
+    void detectsHeicAndMp4ByMagicBytes() throws Exception {
+        byte[] heic = fixture("sample.heic");
+        byte[] mp4 = fixture("sample.mp4");
+
+        assertThat(ImageFormat.detect(heic)).isEqualTo(ImageFormat.HEIC);
+        assertThat(ImageFormat.detect(mp4)).isEqualTo(ImageFormat.MP4);
+    }
+
+    @Test
+    void rejectsMp4TargetedAtImageFormat() throws Exception {
+        byte[] mp4 = fixture("sample.mp4");
+        // mp4 input routed at an image target is rejected before any subprocess runs
+        assertThatThrownBy(() -> service.convert(mp4, "png"))
+                .isInstanceOf(UnsupportedConversionException.class)
+                .hasMessageContaining("mp3");
+    }
+
+    @Test
+    void heicInputWithoutImageMagickFailsWithClearError() throws Exception {
+        byte[] heic = fixture("sample.heic");
+        // detected as HEIC by magic bytes, then routed to the native tool,
+        // which is absent here — must surface a readable message, not a 500
+        assertThatThrownBy(() -> service.convert(heic, "png"))
+                .isInstanceOf(UnsupportedConversionException.class)
+                .hasMessageContaining("heif-convert");
+    }
+
     /* helpers: build real encoded images in memory, no binary fixtures */
+
+    private byte[] fixture(String name) throws Exception {
+        try (var in = getClass().getResourceAsStream("/fixtures/" + name)) {
+            return in.readAllBytes();
+        }
+    }
 
     private byte[] renderBytes(String format, BufferedImage image) throws Exception {
         ByteArrayOutputStream out = new ByteArrayOutputStream();

@@ -1,9 +1,13 @@
 package com.example.converter.controller;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 import com.example.converter.service.ConversionService;
+import com.example.converter.service.NativeConverterService;
 import com.example.converter.service.ImageFormat;
 import com.example.converter.service.UnsupportedConversionException;
 import org.springframework.http.HttpStatus;
@@ -23,9 +27,11 @@ import org.springframework.web.multipart.MultipartFile;
 public class ConversionController {
 
     private final ConversionService service;
+    private final NativeConverterService nativeTools;
 
-    public ConversionController(ConversionService service) {
+    public ConversionController(ConversionService service, NativeConverterService nativeTools) {
         this.service = service;
+        this.nativeTools = nativeTools;
     }
 
     public record FormatInfo(String name, String extension, boolean supportsAlpha) {
@@ -34,9 +40,26 @@ public class ConversionController {
         }
     }
 
+    public record InputInfo(String name, String extension, boolean nativeTool) {
+        static InputInfo of(ImageFormat f) {
+            return new InputInfo(f.name(), f.extension(), f.isNativeOnly() || f == ImageFormat.MP4);
+        }
+    }
+
+    public record TargetInfo(String name, String extension, String kind) {
+    }
+
     @GetMapping("/formats")
-    public List<FormatInfo> formats() {
-        return List.of(ImageFormat.values()).stream().map(FormatInfo::of).toList();
+    public Map<String, Object> formats() {
+        List<InputInfo> inputs = Arrays.stream(ImageFormat.values())
+                .map(InputInfo::of)
+                .toList();
+        List<TargetInfo> targets = Arrays.stream(ImageFormat.values())
+                .filter(ImageFormat::isImageTarget)
+                .map(f -> new TargetInfo(f.name(), f.extension(), "image"))
+                .collect(Collectors.toList());
+        targets.add(new TargetInfo("MP3", "mp3", "audio"));
+        return Map.of("inputs", inputs, "targets", targets);
     }
 
     @PostMapping("/convert")
@@ -49,6 +72,17 @@ public class ConversionController {
                     .body("{\"error\":\"no file uploaded\"}".getBytes());
         }
 
+        // mp3 target: extract the audio track of any video/audio file ffmpeg can read
+        if (ImageFormat.isMp3Target(target)) {
+            byte[] mp3 = nativeTools.convertToMp3(file.getBytes(),
+                    extensionOf(file.getOriginalFilename()));
+            return ResponseEntity.ok()
+                    .contentType(MediaType.parseMediaType("audio/mpeg"))
+                    .header("Content-Disposition",
+                            "attachment; filename=\"" + rename(file.getOriginalFilename(), "mp3") + "\"")
+                    .body(mp3);
+        }
+
         ConversionService.Conversion result = service.convert(file.getBytes(), target);
 
         String downloadName = rename(file.getOriginalFilename(), result.targetFormat());
@@ -59,6 +93,10 @@ public class ConversionController {
     }
 
     private String rename(String original, ImageFormat target) {
+        return rename(original, target.extension());
+    }
+
+    private String rename(String original, String extension) {
         String base = original != null ? original : "converted";
         int dot = base.lastIndexOf('.');
         if (dot > 0) {
@@ -66,7 +104,16 @@ public class ConversionController {
         }
         // strip anything that could break out of the filename
         base = base.replaceAll("[^A-Za-z0-9._-]", "_");
-        return base + "." + target.extension();
+        return base + "." + extension;
+    }
+
+    /** Lowercased extension of the upload's filename, or "bin" if none. */
+    private static String extensionOf(String filename) {
+        if (filename == null) {
+            return "bin";
+        }
+        int dot = filename.lastIndexOf('.');
+        return dot > 0 ? filename.substring(dot + 1).toLowerCase(java.util.Locale.ROOT) : "bin";
     }
 
     @ExceptionHandler(UnsupportedConversionException.class)

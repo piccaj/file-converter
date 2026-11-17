@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/piccaj/file-converter/actions/workflows/ci.yml/badge.svg)](https://github.com/piccaj/file-converter/actions/workflows/ci.yml)
 
-A server-side image converter web app built with Spring Boot and the JDK's ImageIO — **no external image libraries, no temp files, no storage**. Drop a JPG/PNG/GIF/BMP, pick a target format, download the result.
+A server-side converter web app built with Spring Boot. **JDK ImageIO does images, libheif and ffmpeg do the formats the JDK can't touch** — no oversized all-in-one libraries, no storage, files are deleted immediately after conversion.
 
 <!-- demo link goes here once deployed: **Live demo:** https://...onrender.com -->
 
@@ -10,11 +10,13 @@ A server-side image converter web app built with Spring Boot and the JDK's Image
 
 - **Web UI** at `/` — drag-and-drop (or click) upload, format picker, preview of the converted image, and a download button
 - **Magic-byte format detection** — input format is determined by the file's actual bytes, never the filename or content-type header, which are trivially spoofed (a `.png` containing an EXE is rejected)
+- **HEIC & AVIF decode** via native libheif — the formats the JDK can't read; decoded to PNG, then converted by the standard pipeline, so HEIC→JPG still composites transparency onto white
+- **MP4/MOV → MP3** audio extraction via ffmpeg — video in, audio track out
 - **Transparency handled correctly** — JPG has no alpha channel, so transparent areas are composited onto white instead of turning black
 - **REST API** for scripting: `POST /api/convert` (multipart `file` + `target`), `GET /api/formats`
-- **In-memory only** — files are converted and streamed back; nothing is written to disk or stored
-- **Hard limits** — 10MB upload cap, returning `413`; malformed input returns `415` with a readable message
-- **CI** — builds and runs the full test suite on every push
+- **Temp files strictly scoped** — each conversion gets its own private temp dir, deleted in a `finally` block; args are passed as arrays (no shell string, no injection surface)
+- **Hard limits** — 25MB upload cap, returning `413`; malformed input returns `415` with a readable message
+- **CI** — builds and runs the full test suite on every push, with the native tools installed
 
 ## Supported formats
 
@@ -24,8 +26,11 @@ A server-side image converter web app built with Spring Boot and the JDK's Image
 | JPG | ✓ | ✓ |
 | GIF | ✓ | ✓ |
 | BMP | ✓ | ✓ |
+| HEIC / HEIF | ✓ (libheif) | — |
+| AVIF | ✓ (libheif) | — |
+| MP4 / MOV | ✓ (ffmpeg) | MP3 only |
 
-HEIC and AVIF are **not supported yet** — the JDK's ImageIO can't decode them. The architecture is ready for them (see Roadmap).
+HEIC/AVIF are decode-only: iPhone photos → PNG/JPG/GIF/BMP. MP4/MOV → MP3 (audio track extraction). Encoding HEIC/AVIF would need an encoder build of libheif; encoding video is a different project.
 
 ## Quick start
 
@@ -46,16 +51,17 @@ curl -F "file=@photo.png" -F "target=jpg" http://localhost:8080/api/convert -o p
 
 ### `POST /api/convert`
 
-Multipart form: `file` (the image) and `target` (`png` | `jpg` | `gif` | `bmp`).
+Multipart form: `file` (the image or video) and `target` — one of `png` / `jpg` / `gif` / `bmp` / `mp3`.
 
-Response: the converted image bytes, `Content-Type: image/<target>`, `Content-Disposition: attachment` with a renamed filename.
+Response: the converted file's bytes with `Content-Type: image/<target>` (or `audio/mpeg` for mp3) and `Content-Disposition: attachment` with a renamed filename.
 
 | Status | Meaning |
 |---|---|
 | `200` | converted |
 | `400` | no file / bad request |
-| `413` | file exceeds 10MB |
-| `415` | unrecognized input format (magic-byte check failed) or unknown target |
+| `413` | file exceeds 25MB |
+| `415` | unrecognized input (magic-byte check failed), unknown target, or a required native tool is missing on the server |
+| `422` | input recognized, but the decoder failed (corrupt/truncated file, no audio track, ...) |
 
 ### `GET /api/formats`
 
@@ -68,17 +74,16 @@ Returns the formats the server can read/write:
 ## How it works
 
 ```
-upload ──► magic-byte sniff ──► ImageIO.read ──► alpha flatten ──► ImageIO.write ──► stream back
- (multipart)   (4-12 bytes,     (decode into      (only for JPG       (encode to target)
-                no filenames     memory)           target)
-                trusted)
+upload ──► magic-byte sniff ──► ImageIO or native decode ──► flatten alpha ──► encode ──► stream back
+ (multipart)   (bytes 4-12,      (ImageIO: png/jpg/gif/bmp    (JPG target:      (target
+                no filenames     libheif: heic/avif→png       white backdrop)   format)
+                trusted)         ffmpeg: video→mp3 audio)
 ```
 
-Everything happens in memory — `byte[]` in, `byte[]` out — so there are no temp files to leak and no cleanup jobs to write.
+Images are processed in memory where possible. The native paths (HEIC/AVIF/video) use a private temp directory per request — created, used, and deleted within a single method call, with subprocess arguments passed as arrays so filenames can never inject shell commands.
 
 ## Roadmap
 
-- [ ] HEIC / AVIF support via [libheif](https://github.com/strukturag/libheif) — the formats people actually want converted
 - [ ] WebP read/write
 - [ ] Batch conversion (multiple files at once)
 - [ ] EXIF stripping option
