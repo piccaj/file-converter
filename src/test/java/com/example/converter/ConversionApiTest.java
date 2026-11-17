@@ -152,6 +152,48 @@ class ConversionApiTest {
     }
 
     @Test
+    void convertsMp4ToGifWhenFfmpegPresent() {
+        org.junit.jupiter.api.Assumptions.assumeTrue(
+                new com.example.converter.service.NativeConverterService().ffmpegAvailable(),
+                "ffmpeg not available — skipping video→gif test");
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.MULTIPART_FORM_DATA);
+
+        MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
+        body.add("file", fixtureResource("sample.mp4", "clip.mp4"));
+        body.add("target", "gif");
+
+        ResponseEntity<byte[]> response = restTemplate.postForEntity("/api/convert",
+                new HttpEntity<>(body, headers), byte[].class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getHeaders().getContentType()).isNotNull();
+        assertThat(response.getHeaders().getFirst(HttpHeaders.CONTENT_DISPOSITION))
+                .contains("clip.gif");
+        byte[] out = response.getBody();
+        assertThat(out).isNotNull();
+        assertThat(new String(out, 0, 6, java.nio.charset.StandardCharsets.US_ASCII))
+                .isEqualTo("GIF89a");
+    }
+
+    @Test
+    void rejectsMp4TargetedAtImageFormatWith415() {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.MULTIPART_FORM_DATA);
+
+        MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
+        body.add("file", fixtureResource("sample.mp4", "clip.mp4"));
+        body.add("target", "png");
+
+        ResponseEntity<String> response = restTemplate.postForEntity("/api/convert",
+                new HttpEntity<>(body, headers), String.class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNSUPPORTED_MEDIA_TYPE);
+        assertThat(response.getBody()).contains("gif or mp3");
+    }
+
+    @Test
     void homepageServesUi() {
         ResponseEntity<String> response = restTemplate.getForEntity("/", String.class);
 

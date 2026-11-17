@@ -115,6 +115,10 @@
   }
   .chip-x:hover { border-color: var(--warn); color: var(--warn); }
 
+  /* ── options (revealed once a file is chosen) ── */
+  .options { display: none; }
+  .options.active { display: block; }
+
   /* ── target picker ─────────────────────── */
   .target-row {
     margin-top: 18px;
@@ -310,7 +314,7 @@
     <h1>Format<span class="mark">·</span>Forge</h1>
   </header>
 
-  <p class="subtitle">server-side converter — images (JPG/PNG/GIF/BMP/WEBP/HEIC/AVIF) and video→MP3. files are converted and deleted; nothing is stored.</p>
+  <p class="subtitle">server-side converter — images (JPG/PNG/GIF/BMP/WEBP/HEIC/AVIF) and video→GIF/MP3. files are converted and deleted; nothing is stored.</p>
 
   <div class="dropzone" id="dropzone" tabindex="0" role="button" aria-label="Choose a file to convert">
     <span class="dz-icon">⊞</span>
@@ -325,17 +329,19 @@
     <button class="chip-x" id="chip-x" type="button">✕</button>
   </div>
 
-  <div class="target-row" id="target-row">
-    <span class="target-label">convert to →</span>
-    <button class="fmt-btn" data-fmt="png" type="button">PNG</button>
-    <button class="fmt-btn" data-fmt="jpg" type="button">JPG</button>
-    <button class="fmt-btn" data-fmt="gif" type="button">GIF</button>
-    <button class="fmt-btn" data-fmt="bmp" type="button">BMP</button>
-    <button class="fmt-btn fmt-audio" data-fmt="mp3" type="button">MP3 <span class="tag">audio</span></button>
-  </div>
+  <div class="options" id="options">
+    <div class="target-row" id="target-row">
+      <span class="target-label">convert to →</span>
+      <button class="fmt-btn" data-fmt="png" type="button">PNG</button>
+      <button class="fmt-btn" data-fmt="jpg" type="button">JPG</button>
+      <button class="fmt-btn" data-fmt="gif" type="button">GIF</button>
+      <button class="fmt-btn" data-fmt="bmp" type="button">BMP</button>
+      <button class="fmt-btn fmt-audio" data-fmt="mp3" type="button">MP3 <span class="tag">audio</span></button>
+    </div>
 
-  <div class="go-row">
-    <button class="go" id="go" type="button" disabled>Forge It</button>
+    <div class="go-row">
+      <button class="go" id="go" type="button" disabled>Forge It</button>
+    </div>
   </div>
 
   <div class="error-box" id="error-box"></div>
@@ -369,10 +375,10 @@
         <tr><td>WEBP</td><td>PNG · JPG · GIF · BMP</td><td>ffmpeg</td></tr>
         <tr><td>HEIC / HEIF</td><td>PNG · JPG · GIF · BMP</td><td>libheif</td></tr>
         <tr><td>AVIF</td><td>PNG · JPG · GIF · BMP</td><td>libheif</td></tr>
-        <tr><td>MP4 / MOV</td><td>MP3 (audio)</td><td>ffmpeg</td></tr>
+        <tr><td>MP4 / MOV</td><td>GIF · MP3 (audio)</td><td>ffmpeg</td></tr>
       </tbody>
     </table>
-    <p style="font-size:11px;color:rgba(232,240,255,.4);margin-top:8px">JPG has no alpha channel — transparent pixels are composited onto white. WEBP/HEIC/AVIF/video use native tools (ffmpeg, libheif); if the server lacks them, a clear error is shown.</p>
+    <p style="font-size:11px;color:rgba(232,240,255,.4);margin-top:8px">JPG has no alpha channel — transparent pixels are composited onto white. WEBP/HEIC/AVIF/video use native tools (ffmpeg, libheif); if the server lacks them, a clear error is shown. Video→GIF is capped at 480px wide, 12 fps, 15s.</p>
   </section>
 
   <footer>
@@ -389,6 +395,7 @@
   const chipName = $('chip-name');
   const chipMeta = $('chip-meta');
   const chipX = $('chip-x');
+  const options = $('options');
   const fmtBtns = Array.from(document.querySelectorAll('.fmt-btn'));
   const go = $('go');
   const errorBox = $('error-box');
@@ -404,34 +411,34 @@
   let file = null;
   let target = null;
 
-  // formats where only the MP3 (audio) target makes sense
-  const AUDIO_SOURCES = ['mp4', 'm4v', 'mov', 'video/'];
+  // video sources: only the GIF and MP3 targets make sense for these
+  const VIDEO_SIGNATURES = ['mp4', 'm4v', 'mov', 'video/'];
+  const VIDEO_TARGETS = ['gif', 'mp3'];
 
   const humanSize = (bytes) => bytes < 1024
     ? bytes + ' B'
     : (bytes / 1024).toFixed(1) + ' KB';
 
   const isVideo = (f) =>
-    AUDIO_SOURCES.some((sig) => (f.type || '').includes(sig))
+    VIDEO_SIGNATURES.some((sig) => (f.type || '').includes(sig))
     || /\.(mp4|m4v|mov)$/i.test(f.name || '');
 
   function setFile(f) {
     file = f;
     errorBox.classList.remove('active');
     result.classList.remove('active');
+    options.classList.toggle('active', !!f);
     if (f) {
       chipName.textContent = f.name;
       chipMeta.textContent = humanSize(f.size);
       chip.classList.add('active');
-      // a video can only become an MP3; clear any stale image-target pick
       if (isVideo(f)) {
+        // a video can only become an animated GIF or an MP3; disable the rest
         fmtBtns.forEach((b) => {
-          const isAudio = b.dataset.fmt === 'mp3';
-          b.disabled = !isAudio;
-          if (!isAudio) b.classList.remove('selected');
+          b.disabled = !VIDEO_TARGETS.includes(b.dataset.fmt);
+          b.classList.toggle('selected', b.dataset.fmt === 'gif');
         });
-        target = 'mp3';
-        document.querySelector('[data-fmt="mp3"]').classList.add('selected');
+        target = 'gif';
       } else {
         fmtBtns.forEach((b) => {
           b.disabled = false;

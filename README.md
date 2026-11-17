@@ -11,7 +11,7 @@ A server-side converter web app built with Spring Boot. **JDK ImageIO does image
 - **Web UI** at `/` — drag-and-drop (or click) upload, format picker, preview of the converted image, and a download button
 - **Magic-byte format detection** — input format is determined by the file's actual bytes, never the filename or content-type header, which are trivially spoofed (a `.png` containing an EXE is rejected)
 - **HEIC & AVIF decode** via native libheif — the formats the JDK can't read; decoded to PNG, then converted by the standard pipeline, so HEIC→JPG still composites transparency onto white
-- **MP4/MOV → MP3** audio extraction via ffmpeg — video in, audio track out
+- **MP4/MOV → GIF or MP3** via ffmpeg — video in, animated GIF (palette-optimised) or extracted audio track out
 - **Transparency handled correctly** — JPG has no alpha channel, so transparent areas are composited onto white instead of turning black
 - **REST API** for scripting: `POST /api/convert` (multipart `file` + `target`), `GET /api/formats`
 - **Temp files strictly scoped** — each conversion gets its own private temp dir, deleted in a `finally` block; args are passed as arrays (no shell string, no injection surface)
@@ -29,9 +29,9 @@ A server-side converter web app built with Spring Boot. **JDK ImageIO does image
 | WEBP | ✓ (ffmpeg) | — |
 | HEIC / HEIF | ✓ (libheif) | — |
 | AVIF | ✓ (libheif) | — |
-| MP4 / MOV | ✓ (ffmpeg) | MP3 only |
+| MP4 / MOV | ✓ (ffmpeg) | GIF · MP3 |
 
-HEIC/AVIF/WEBP are decode-only: iPhone photos, AVIF images, and WebP images → PNG/JPG/GIF/BMP. MP4/MOV → MP3 (audio track extraction). Encoding HEIC/AVIF would need an encoder build of libheif; encoding video is a different project.
+HEIC/AVIF/WEBP are decode-only: iPhone photos, AVIF images, and WebP images → PNG/JPG/GIF/BMP. MP4/MOV → GIF (animated, palette-optimised) or MP3 (audio track extraction). Encoding HEIC/AVIF would need an encoder build of libheif; encoding video in other container formats is a different project.
 
 ## Quick start
 
@@ -52,7 +52,7 @@ curl -F "file=@photo.png" -F "target=jpg" http://localhost:8080/api/convert -o p
 
 ### `POST /api/convert`
 
-Multipart form: `file` (the image or video) and `target` — one of `png` / `jpg` / `gif` / `bmp` / `mp3`.
+Multipart form: `file` (the image or video) and `target` — one of `png` / `jpg` / `gif` / `bmp` / `mp3`. Video inputs (MP4/MOV) accept only `gif` and `mp3`.
 
 Response: the converted file's bytes with `Content-Type: image/<target>` (or `audio/mpeg` for mp3) and `Content-Disposition: attachment` with a renamed filename.
 
@@ -78,7 +78,7 @@ Returns the formats the server can read/write:
 upload ──► magic-byte sniff ──► ImageIO or native decode ──► flatten alpha ──► encode ──► stream back
  (multipart)   (bytes 4-12,      (ImageIO: png/jpg/gif/bmp    (JPG target:      (target
                 no filenames     libheif: heic/avif→png       white backdrop)   format)
-                trusted)         ffmpeg: video→mp3 audio)
+                trusted)         ffmpeg: video→gif / mp3)
 ```
 
 Images are processed in memory where possible. The native paths (HEIC/AVIF/video) use a private temp directory per request — created, used, and deleted within a single method call, with subprocess arguments passed as arrays so filenames can never inject shell commands.
@@ -89,7 +89,7 @@ Images are processed in memory where possible. The native paths (HEIC/AVIF/video
 - [ ] Batch conversion (multiple files at once)
 - [ ] EXIF stripping option
 - [ ] Optional background color for JPG flattening
-- [ ] Animated GIF frame handling
+- [ ] Animated GIF input frame handling (video→GIF output already preserves animation)
 
 ## Deploying (Docker)
 

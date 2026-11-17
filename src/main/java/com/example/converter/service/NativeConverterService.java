@@ -12,7 +12,7 @@ import org.springframework.stereotype.Service;
 
 /**
  * Shells out to native binaries for formats the JDK can't touch:
- * ffmpeg (video -> mp3) and ImageMagick (HEIC/AVIF -> png/jpg).
+ * ffmpeg (video -> gif / mp3, webp -> png) and heif-convert (HEIC/AVIF -> png).
  *
  * Rules: args are passed as an array (never a shell string, so filenames
  * can't inject commands), every request gets its own temp directory which is
@@ -23,6 +23,12 @@ public class NativeConverterService {
 
     private static final Logger log = LoggerFactory.getLogger(NativeConverterService.class);
     private static final long PROCESS_TIMEOUT_SECONDS = 60;
+
+    // GIF output caps: bound the frame rate, width and clip length so a long or
+    // high-resolution video can't balloon into an enormous, slow-to-build GIF.
+    private static final int GIF_FPS = 12;
+    private static final int GIF_MAX_WIDTH = 480;
+    private static final int GIF_MAX_SECONDS = 15;
 
     private final String ffmpeg;
     private final String heifConvert;
@@ -59,6 +65,32 @@ public class NativeConverterService {
                     "-i", in.toString(), "-vn", "-c:a", "libmp3lame", "-q:a", "4",
                     mp3.toString()), "ffmpeg");
             return Files.readAllBytes(mp3);
+        });
+    }
+
+    /** Transcodes a video (MP4/MOV) to an animated GIF. A single-pass
+     *  palettegen/paletteuse filter builds a per-clip color palette, which
+     *  looks far better than ffmpeg's default 256-color guess; the split feeds
+     *  the same decoded frames to both the palette and the ditherer. The clip
+     *  is capped in length and width so a long or 4K source can't produce a
+     *  runaway GIF (GIF is a 256-color format — this is inherent, not a bug). */
+    public byte[] convertToGif(byte[] input, String inputExtension) throws IOException, UnsupportedConversionException {
+        if (ffmpeg == null) {
+            throw new UnsupportedConversionException("ffmpeg is not installed on this server");
+        }
+        return withTempDir(input, inputExtension, (in) -> {
+            Path gif = in.getParent().resolve("output.gif");
+            String filter = "[0:v]fps=" + GIF_FPS
+                    + ",scale='min(" + GIF_MAX_WIDTH + ",iw)':-1:flags=lanczos"
+                    + ",split[a][b];[a]palettegen=stats_mode=diff[p];"
+                    + "[b][p]paletteuse=dither=bayer:bayer_scale=3";
+            run(List.of(ffmpeg, "-y", "-hide_banner", "-loglevel", "error",
+                    "-t", Integer.toString(GIF_MAX_SECONDS),
+                    "-i", in.toString(),
+                    "-filter_complex", filter,
+                    "-loop", "0",
+                    gif.toString()), "ffmpeg");
+            return Files.readAllBytes(gif);
         });
     }
 

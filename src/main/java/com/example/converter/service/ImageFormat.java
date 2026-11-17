@@ -15,14 +15,19 @@ public enum ImageFormat {
     WEBP("webp", true),
     HEIC("heic", true),
     AVIF("avif", true),
-    MP4("mp4", false); // input-only: audio-extraction source, never an image target
+    MP4("mp4", false); // input-only: video source for GIF/MP3, never an image target
 
     /** Formats only decodable by the native toolchain (ffmpeg / libheif). */
     public boolean isNativeOnly() {
         return this == WEBP || this == HEIC || this == AVIF;
     }
 
-    /** Formats the UI/API accept as a conversion target. MP4 is video (mp3-only
+    /** Video container (MP4/MOV): decoded by ffmpeg, targetable only as GIF or MP3. */
+    public boolean isVideo() {
+        return this == MP4;
+    }
+
+    /** Formats the UI/API accept as a conversion target. MP4 is video (GIF/MP3
      *  pipeline); HEIC/AVIF are decode-only — nothing here can encode them. */
     public boolean isImageTarget() {
         return this == PNG || this == JPG || this == GIF || this == BMP;
@@ -98,7 +103,8 @@ public enum ImageFormat {
                 return AVIF;
             }
             if (brand.startsWith("isom") || brand.startsWith("iso2") || brand.startsWith("mp4")
-                    || brand.startsWith("M4V") || brand.startsWith("avc1")) {
+                    || brand.startsWith("M4V") || brand.startsWith("avc1")
+                    || brand.startsWith("qt")) { // QuickTime .mov
                 return MP4;
             }
         }

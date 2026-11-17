@@ -44,9 +44,14 @@ public class ConversionService {
             throw new UnsupportedConversionException("unrecognized input format — magic bytes don't match any supported type");
         }
 
-        if (source == ImageFormat.MP4) {
+        if (source.isVideo()) {
+            if (target == ImageFormat.GIF) {
+                // video → animated GIF is a native ffmpeg transcode, not ImageIO
+                byte[] gif = nativeConverter.convertToGif(input, source.extension());
+                return new Conversion(gif, source, target);
+            }
             throw new UnsupportedConversionException(
-                    "video files can only be converted to mp3 — pick the MP3 target");
+                    "video files can only be converted to gif or mp3");
         }
 
         if (source.isNativeOnly()) {

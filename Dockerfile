@@ -13,7 +13,7 @@ RUN mvn -B package -DskipTests
 FROM eclipse-temurin:21-jre-alpine
 WORKDIR /app
 
-# ffmpeg: MP4→MP3 audio extraction. libheif-tools: heif-convert for HEIC/AVIF
+# ffmpeg: MP4→GIF transcoding and MP4→MP3 audio extraction. libheif-tools: heif-convert for HEIC/AVIF
 # decode (the plain "libheif" apk is just the library, no CLI).
 RUN apk add --no-cache ffmpeg libheif-tools
 

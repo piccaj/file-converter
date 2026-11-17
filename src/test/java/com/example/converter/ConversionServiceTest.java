@@ -121,7 +121,49 @@ class ConversionServiceTest {
         // mp4 input routed at an image target is rejected before any subprocess runs
         assertThatThrownBy(() -> service.convert(mp4, "png"))
                 .isInstanceOf(UnsupportedConversionException.class)
-                .hasMessageContaining("mp3");
+                .hasMessageContaining("gif or mp3");
+    }
+
+    @Test
+    void detectsQuickTimeMovBrandAsVideo() {
+        // ISO-BMFF container with a "qt  " major brand is a .mov file
+        byte[] mov = new byte[16];
+        mov[3] = 0x14;
+        System.arraycopy("ftypqt  ".getBytes(java.nio.charset.StandardCharsets.US_ASCII), 0, mov, 4, 8);
+
+        assertThat(ImageFormat.detect(mov)).isEqualTo(ImageFormat.MP4);
+    }
+
+    @Test
+    void convertsMp4ToGifWhenFfmpegPresent() throws Exception {
+        org.junit.jupiter.api.Assumptions.assumeTrue(
+                new NativeConverterService().ffmpegAvailable(),
+                "ffmpeg not available — skipping video→gif test");
+
+        byte[] mp4 = fixture("sample.mp4");
+
+        ConversionService.Conversion result = service.convert(mp4, "gif");
+
+        assertThat(result.sourceFormat()).isEqualTo(ImageFormat.MP4);
+        assertThat(result.targetFormat()).isEqualTo(ImageFormat.GIF);
+        assertThat(ImageFormat.detect(result.data())).isEqualTo(ImageFormat.GIF);
+        // the encoded bytes are a real, non-trivial animated GIF
+        assertThat(new String(result.data(), 0, 6, java.nio.charset.StandardCharsets.US_ASCII))
+                .isEqualTo("GIF89a");
+        assertThat(result.data().length).isGreaterThan(1000);
+    }
+
+    @Test
+    void videoToGifWithoutFfmpegFailsWithClearError() throws Exception {
+        byte[] mp4 = fixture("sample.mp4");
+        NativeConverterService bare = new NativeConverterService(
+                java.util.Map.of("FFMPEG_BIN", "/nonexistent/ffmpeg",
+                        "HEIF_CONVERT_BIN", "/nonexistent/heif-convert"));
+        ConversionService forcedAbsent = new ConversionService(bare);
+
+        assertThatThrownBy(() -> forcedAbsent.convert(mp4, "gif"))
+                .isInstanceOf(UnsupportedConversionException.class)
+                .hasMessageContaining("ffmpeg");
     }
 
     @Test
