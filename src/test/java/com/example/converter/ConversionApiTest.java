@@ -104,6 +104,30 @@ class ConversionApiTest {
     }
 
     @Test
+    void convertsWebpToPngWhenFfmpegPresent() {
+        org.junit.jupiter.api.Assumptions.assumeTrue(
+                new com.example.converter.service.NativeConverterService().ffmpegAvailable(),
+                "ffmpeg not available — skipping webp test");
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.MULTIPART_FORM_DATA);
+
+        MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
+        body.add("file", fixtureResource("sample.webp", "photo.webp"));
+        body.add("target", "png");
+
+        ResponseEntity<byte[]> response = restTemplate.postForEntity("/api/convert",
+                new HttpEntity<>(body, headers), byte[].class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getHeaders().getFirst(HttpHeaders.CONTENT_DISPOSITION))
+                .contains("photo.png");
+        byte[] out = response.getBody();
+        assertThat(out).isNotNull();
+        assertThat(out[0]).isEqualTo((byte) 0x89); // PNG magic
+    }
+
+    @Test
     void convertsHeicToPngWhenHeifToolsPresent() {
         org.junit.jupiter.api.Assumptions.assumeTrue(
                 new com.example.converter.service.NativeConverterService().heifAvailable(),

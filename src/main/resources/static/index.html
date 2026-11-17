@@ -310,14 +310,14 @@
     <h1>Format<span class="mark">·</span>Forge</h1>
   </header>
 
-  <p class="subtitle">server-side converter — images (JPG/PNG/GIF/BMP/HEIC/AVIF) and video→MP3. files are converted and deleted; nothing is stored.</p>
+  <p class="subtitle">server-side converter — images (JPG/PNG/GIF/BMP/WEBP/HEIC/AVIF) and video→MP3. files are converted and deleted; nothing is stored.</p>
 
   <div class="dropzone" id="dropzone" tabindex="0" role="button" aria-label="Choose a file to convert">
     <span class="dz-icon">⊞</span>
     <span class="dz-main">drop an image or video here</span>
     <span class="dz-sub">or click to browse — 25MB max</span>
   </div>
-  <input type="file" id="file-input" accept=".png,.jpg,.jpeg,.gif,.bmp,.heic,.heif,.avif,.mp4,.m4v,.mov,image/*,video/mp4">
+  <input type="file" id="file-input" accept=".png,.jpg,.jpeg,.gif,.bmp,.webp,.heic,.heif,.avif,.mp4,.m4v,.mov,image/*,video/mp4">
 
   <div class="file-chip" id="file-chip">
     <span class="chip-name" id="chip-name"></span>
@@ -366,12 +366,13 @@
         <tr><td>JPG</td><td>PNG · JPG · GIF · BMP</td><td class="y">ImageIO</td></tr>
         <tr><td>GIF</td><td>PNG · JPG · GIF · BMP</td><td class="y">ImageIO</td></tr>
         <tr><td>BMP</td><td>PNG · JPG · GIF · BMP</td><td class="y">ImageIO</td></tr>
+        <tr><td>WEBP</td><td>PNG · JPG · GIF · BMP</td><td>ffmpeg</td></tr>
         <tr><td>HEIC / HEIF</td><td>PNG · JPG · GIF · BMP</td><td>libheif</td></tr>
         <tr><td>AVIF</td><td>PNG · JPG · GIF · BMP</td><td>libheif</td></tr>
         <tr><td>MP4 / MOV</td><td>MP3 (audio)</td><td>ffmpeg</td></tr>
       </tbody>
     </table>
-    <p style="font-size:11px;color:rgba(232,240,255,.4);margin-top:8px">JPG has no alpha channel — transparent pixels are composited onto white. HEIC/AVIF/video use native tools (libheif, ffmpeg); if the server lacks them, a clear error is shown.</p>
+    <p style="font-size:11px;color:rgba(232,240,255,.4);margin-top:8px">JPG has no alpha channel — transparent pixels are composited onto white. WEBP/HEIC/AVIF/video use native tools (ffmpeg, libheif); if the server lacks them, a clear error is shown.</p>
   </section>
 
   <footer>

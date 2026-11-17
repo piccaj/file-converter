@@ -12,13 +12,14 @@ public enum ImageFormat {
     JPG("jpg", false),
     GIF("gif", true),
     BMP("bmp", true),
+    WEBP("webp", true),
     HEIC("heic", true),
     AVIF("avif", true),
     MP4("mp4", false); // input-only: audio-extraction source, never an image target
 
-    /** Formats only decodable by the native toolchain (ImageMagick). */
+    /** Formats only decodable by the native toolchain (ffmpeg / libheif). */
     public boolean isNativeOnly() {
-        return this == HEIC || this == AVIF;
+        return this == WEBP || this == HEIC || this == AVIF;
     }
 
     /** Formats the UI/API accept as a conversion target. MP4 is video (mp3-only
@@ -82,6 +83,11 @@ public enum ImageFormat {
         }
         if (startsWith(header, 'B', 'M')) {
             return BMP;
+        }
+        if (header.length >= 12 && header[0] == 'R' && header[1] == 'I' && header[2] == 'F'
+                && header[3] == 'F' && header[8] == 'W' && header[9] == 'E' && header[10] == 'B'
+                && header[11] == 'P') {
+            return WEBP;
         }
         if (header.length >= 12 && header[4] == 'f' && header[5] == 't' && header[6] == 'y' && header[7] == 'p') {
             String brand = new String(header, 8, 4, java.nio.charset.StandardCharsets.ISO_8859_1);

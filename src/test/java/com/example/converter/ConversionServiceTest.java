@@ -108,9 +108,11 @@ class ConversionServiceTest {
     void detectsHeicAndMp4ByMagicBytes() throws Exception {
         byte[] heic = fixture("sample.heic");
         byte[] mp4 = fixture("sample.mp4");
+        byte[] webp = fixture("sample.webp");
 
         assertThat(ImageFormat.detect(heic)).isEqualTo(ImageFormat.HEIC);
         assertThat(ImageFormat.detect(mp4)).isEqualTo(ImageFormat.MP4);
+        assertThat(ImageFormat.detect(webp)).isEqualTo(ImageFormat.WEBP);
     }
 
     @Test

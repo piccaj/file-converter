@@ -62,13 +62,24 @@ public class NativeConverterService {
         });
     }
 
-    /** Decodes HEIC/AVIF to PNG via libheif's heif-convert. The caller feeds
-     *  the PNG back through the standard ImageIO pipeline, so every image
-     *  target (JPG flatten, GIF, BMP) keeps working with no extra code.
-     *  ImageMagick's Debian build lacks HEIC delegates; libheif handles both
-     *  HEIC and AVIF natively. */
+    /** Decodes a natively-decodable image (HEIC/AVIF via libheif, WebP via
+     *  ffmpeg) to PNG. The caller feeds the PNG back through the standard
+     *  ImageIO pipeline, so every image target (JPG flatten, GIF, BMP) keeps
+     *  working with no extra code. */
     public byte[] decodeToPng(byte[] input, String inputExtension)
             throws IOException, UnsupportedConversionException {
+        if (inputExtension.equals("webp")) {
+            // ffmpeg has a built-in WebP decoder (animated too); ImageIO has none
+            if (ffmpeg == null) {
+                throw new UnsupportedConversionException("ffmpeg is not installed on this server");
+            }
+            return withTempDir(input, inputExtension, (in) -> {
+                Path png = in.getParent().resolve("decoded.png");
+                run(List.of(ffmpeg, "-y", "-hide_banner", "-loglevel", "error",
+                        "-i", in.toString(), "-frames:v", "1", png.toString()), "ffmpeg");
+                return Files.readAllBytes(png);
+            });
+        }
         if (heifConvert == null) {
             throw new UnsupportedConversionException("heif-convert (libheif) is not installed on this server");
         }

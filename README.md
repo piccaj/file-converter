@@ -26,11 +26,12 @@ A server-side converter web app built with Spring Boot. **JDK ImageIO does image
 | JPG | ✓ | ✓ |
 | GIF | ✓ | ✓ |
 | BMP | ✓ | ✓ |
+| WEBP | ✓ (ffmpeg) | — |
 | HEIC / HEIF | ✓ (libheif) | — |
 | AVIF | ✓ (libheif) | — |
 | MP4 / MOV | ✓ (ffmpeg) | MP3 only |
 
-HEIC/AVIF are decode-only: iPhone photos → PNG/JPG/GIF/BMP. MP4/MOV → MP3 (audio track extraction). Encoding HEIC/AVIF would need an encoder build of libheif; encoding video is a different project.
+HEIC/AVIF/WEBP are decode-only: iPhone photos, AVIF images, and WebP images → PNG/JPG/GIF/BMP. MP4/MOV → MP3 (audio track extraction). Encoding HEIC/AVIF would need an encoder build of libheif; encoding video is a different project.
 
 ## Quick start
 
@@ -84,7 +85,7 @@ Images are processed in memory where possible. The native paths (HEIC/AVIF/video
 
 ## Roadmap
 
-- [ ] WebP read/write
+- [ ] WEBP write support
 - [ ] Batch conversion (multiple files at once)
 - [ ] EXIF stripping option
 - [ ] Optional background color for JPG flattening
