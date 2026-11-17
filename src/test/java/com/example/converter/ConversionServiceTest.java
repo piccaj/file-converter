@@ -1,0 +1,123 @@
+package com.example.converter.service;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import javax.imageio.ImageIO;
+import org.junit.jupiter.api.Test;
+
+class ConversionServiceTest {
+
+    private final ConversionService service = new ConversionService();
+
+    @Test
+    void convertsPngToJpgAndFlattensTransparency() throws Exception {
+        byte[] png = render(10, 10, true);
+
+        ConversionService.Conversion result = service.convert(png, "jpg");
+
+        assertThat(result.sourceFormat()).isEqualTo(ImageFormat.PNG);
+        assertThat(result.targetFormat()).isEqualTo(ImageFormat.JPG);
+        assertThat(ImageFormat.detect(result.data())).isEqualTo(ImageFormat.JPG);
+
+        BufferedImage decoded = ImageIO.read(new ByteArrayInputStream(result.data()));
+        // transparent corner must become ~white after compositing, not black.
+        // JPG is lossy, so allow per-channel tolerance rather than exact 255.
+        int rgb = decoded.getRGB(0, 0);
+        int r = (rgb >> 16) & 0xFF, g2 = (rgb >> 8) & 0xFF, b = rgb & 0xFF;
+        assertThat(r).isGreaterThan(240);
+        assertThat(g2).isGreaterThan(240);
+        assertThat(b).isGreaterThan(240);
+    }
+
+    @Test
+    void convertsJpgToPng() throws Exception {
+        byte[] jpg = render(8, 6, false);
+
+        ConversionService.Conversion result = service.convert(jpg, "png");
+
+        assertThat(result.sourceFormat()).isEqualTo(ImageFormat.JPG);
+        assertThat(ImageFormat.detect(result.data())).isEqualTo(ImageFormat.PNG);
+        BufferedImage decoded = ImageIO.read(new ByteArrayInputStream(result.data()));
+        assertThat(decoded.getWidth()).isEqualTo(8);
+        assertThat(decoded.getHeight()).isEqualTo(6);
+    }
+
+    @Test
+    void convertsBmpToPngAndPngToBmp() throws Exception {
+        byte[] bmp = renderBytes("bmp", new BufferedImage(5, 5, BufferedImage.TYPE_INT_RGB));
+
+        ConversionService.Conversion toPng = service.convert(bmp, "png");
+        assertThat(toPng.sourceFormat()).isEqualTo(ImageFormat.BMP);
+
+        ConversionService.Conversion backToBmp = service.convert(toPng.data(), "bmp");
+        assertThat(backToBmp.sourceFormat()).isEqualTo(ImageFormat.PNG);
+        assertThat(backToBmp.targetFormat()).isEqualTo(ImageFormat.BMP);
+    }
+
+    @Test
+    void convertsGifToPng() throws Exception {
+        byte[] gif = renderBytes("gif", new BufferedImage(4, 4, BufferedImage.TYPE_INT_ARGB));
+
+        ConversionService.Conversion result = service.convert(gif, "png");
+        assertThat(result.sourceFormat()).isEqualTo(ImageFormat.GIF);
+        assertThat(ImageFormat.detect(result.data())).isEqualTo(ImageFormat.PNG);
+    }
+
+    @Test
+    void rejectsUnknownTarget() throws Exception {
+        byte[] png = renderBytes("png", new BufferedImage(6, 6, BufferedImage.TYPE_INT_ARGB));
+        assertThatThrownBy(() -> service.convert(png, "heic"))
+                .isInstanceOf(UnsupportedConversionException.class);
+    }
+
+    @Test
+    void rejectsUnrecognizedInputByMagicBytes() {
+        byte[] notAnImage = "definitely not an image".repeat(2).getBytes();
+        assertThatThrownBy(() -> service.convert(notAnImage, "png"))
+                .isInstanceOf(UnsupportedConversionException.class)
+                .hasMessageContaining("magic bytes");
+    }
+
+    @Test
+    void rejectsRarFileDisguisedAsPng() throws Exception {
+        // RAR magic (52 61 72 21) prepended to a real PNG — filename lies,
+        // magic bytes don't
+        byte[] png = renderBytes("png", new BufferedImage(6, 6, BufferedImage.TYPE_INT_ARGB));
+        byte[] fake = new byte[png.length + 4];
+        fake[0] = 'R'; fake[1] = 'a'; fake[2] = 'r'; fake[3] = '!';
+        System.arraycopy(png, 0, fake, 4, png.length);
+
+        assertThatThrownBy(() -> service.convert(fake, "jpg"))
+                .isInstanceOf(UnsupportedConversionException.class);
+    }
+
+    /* helpers: build real encoded images in memory, no binary fixtures */
+
+    private byte[] renderBytes(String format, BufferedImage image) throws Exception {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        ImageIO.write(image, format, out);
+        return out.toByteArray();
+    }
+
+    /** Encodes a red w×h image; when alpha is on, the left half is transparent. */
+    private byte[] render(int w, int h, boolean alpha) throws Exception {
+        BufferedImage image = new BufferedImage(w, h,
+                alpha ? BufferedImage.TYPE_INT_ARGB : BufferedImage.TYPE_INT_RGB);
+        java.awt.Graphics2D g = image.createGraphics();
+        try {
+            g.setColor(java.awt.Color.RED);
+            g.fillRect(0, 0, w, h);
+            if (alpha) {
+                g.setComposite(java.awt.AlphaComposite.Clear);
+                g.fillRect(0, 0, w / 2, h);
+            }
+        } finally {
+            g.dispose();
+        }
+        return renderBytes(alpha ? "png" : "jpg", image);
+    }
+}

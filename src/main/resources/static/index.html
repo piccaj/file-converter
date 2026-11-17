@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FORMAT·FORGE — image converter</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Archivo+Black&display=swap');
+
+  :root {
+    --blue: #0a2a5e;
+    --blue-deep: #071d42;
+    --paper: #e8f0ff;
+    --ink: #0f2557;
+    --line: rgba(232, 240, 255, 0.25);
+    --accent: #ffd23f;
+    --ok: #2bd976;
+    --warn: #ff6b6b;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--blue-deep);
+    background-image:
+      linear-gradient(rgba(232,240,255,.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(232,240,255,.04) 1px, transparent 1px);
+    background-size: 28px 28px;
+    color: var(--paper);
+    font-family: 'Space Mono', monospace;
+    min-height: 100vh;
+  }
+
+  main {
+    max-width: 780px;
+    margin: 0 auto;
+    padding: 48px 24px 80px;
+  }
+
+  header { margin-bottom: 6px; animation: draw .6s ease-out both; }
+
+  h1 {
+    font-family: 'Archivo Black', sans-serif;
+    font-size: clamp(38px, 7vw, 64px);
+    color: var(--paper);
+    letter-spacing: -0.01em;
+    line-height: .95;
+    text-transform: uppercase;
+  }
+
+  h1 .mark { color: var(--accent); }
+
+  .subtitle {
+    font-size: 13px;
+    color: rgba(232,240,255,.55);
+    margin: 10px 0 36px;
+    border-left: 3px solid var(--accent);
+    padding-left: 12px;
+    animation: draw .6s .06s ease-out both;
+  }
+
+  /* ── drop zone ─────────────────────────── */
+  .dropzone {
+    border: 2px dashed var(--line);
+    background: rgba(10, 42, 94, 0.35);
+    padding: 52px 32px;
+    text-align: center;
+    position: relative;
+    cursor: pointer;
+    transition: border-color .2s, background .2s, transform .15s;
+    animation: draw .6s .12s ease-out both;
+  }
+
+  .dropzone:hover, .dropzone:focus {
+    border-color: var(--accent);
+    background: rgba(10, 42, 94, 0.55);
+    outline: none;
+  }
+
+  .dropzone.dragging {
+    border-color: var(--accent);
+    background: rgba(255, 210, 63, 0.08);
+    transform: scale(1.01);
+  }
+
+  .dz-icon { font-size: 34px; margin-bottom: 10px; display: block; }
+  .dz-main { font-size: 16px; font-weight: 700; }
+  .dz-sub { font-size: 12px; color: rgba(232,240,255,.5); margin-top: 6px; }
+
+  input[type=file] { display: none; }
+
+  /* ── file row ──────────────────────────── */
+  .file-chip {
+    display: none;
+    margin-top: 14px;
+    padding: 12px 16px;
+    border: 1px solid var(--line);
+    background: rgba(10, 42, 94, 0.5);
+    font-size: 13px;
+    align-items: center;
+    gap: 12px;
+    animation: draw .4s ease-out both;
+  }
+  .file-chip.active { display: flex; }
+  .chip-name { font-weight: 700; color: var(--accent); word-break: break-all; }
+  .chip-meta { color: rgba(232,240,255,.5); font-size: 12px; }
+  .chip-x {
+    margin-left: auto;
+    background: none;
+    border: 1px solid var(--line);
+    color: var(--paper);
+    font: inherit;
+    padding: 4px 10px;
+    cursor: pointer;
+  }
+  .chip-x:hover { border-color: var(--warn); color: var(--warn); }
+
+  /* ── target picker ─────────────────────── */
+  .target-row {
+    margin-top: 18px;
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    animation: draw .6s .18s ease-out both;
+  }
+
+  .target-label {
+    width: 100%;
+    font-size: 11px;
+    letter-spacing: .15em;
+    text-transform: uppercase;
+    color: rgba(232,240,255,.5);
+    margin-bottom: 2px;
+  }
+
+  .fmt-btn {
+    flex: 1;
+    min-width: 90px;
+    border: 1px solid var(--line);
+    background: transparent;
+    color: var(--paper);
+    font: inherit;
+    font-size: 14px;
+    font-weight: 700;
+    padding: 10px 0;
+    cursor: pointer;
+    position: relative;
+    transition: all .15s;
+  }
+
+  .fmt-btn:hover { border-color: var(--paper); }
+  .fmt-btn.selected {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: rgba(255, 210, 63, .07);
+  }
+  .fmt-btn.selected::after {
+    content: '▸';
+    position: absolute;
+    top: 50%;
+    right: 8px;
+    transform: translateY(-50%);
+    font-size: 10px;
+  }
+
+  /* ── convert button ─────────────────────── */
+  .go-row { margin-top: 22px; animation: draw .6s .24s ease-out both; }
+
+  .go {
+    width: 100%;
+    background: var(--accent);
+    color: var(--blue-deep);
+    border: none;
+    font: inherit;
+    font-size: 16px;
+    font-weight: 700;
+    padding: 16px;
+    cursor: pointer;
+    text-transform: uppercase;
+    letter-spacing: .1em;
+    transition: transform .1s, box-shadow .15s;
+  }
+  .go:hover { box-shadow: 0 0 24px rgba(255,210,63,.35); }
+  .go:active { transform: translateY(2px); }
+  .go:disabled { opacity: .45; cursor: not-allowed; box-shadow: none; }
+
+  /* ── result ────────────────────────────── */
+  .result {
+    display: none;
+    margin-top: 18px;
+    padding: 20px;
+    border: 1px solid var(--ok);
+    background: rgba(43, 217, 118, .05);
+    animation: draw .4s ease-out both;
+  }
+  .result.active { display: block; }
+
+  .result-head { font-size: 13px; color: var(--ok); margin-bottom: 12px; }
+  .result-grid { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
+
+  .preview {
+    width: 96px;
+    height: 96px;
+    border: 1px solid var(--line);
+    background:
+      repeating-conic-gradient(rgba(232,240,255,.12) 0 25%, transparent 0 50%)
+      0 0 / 16px 16px;
+    object-fit: contain;
+  }
+
+  .result-meta { flex: 1; min-width: 200px; }
+  .result-name { font-size: 14px; font-weight: 700; word-break: break-all; }
+  .result-meta table { font-size: 12px; color: rgba(232,240,255,.65); margin-top: 6px; }
+  .result-meta td { padding-right: 16px; }
+
+  .download {
+    background: var(--paper);
+    color: var(--blue-deep);
+    text-decoration: none;
+    font: inherit;
+    font-weight: 700;
+    font-size: 14px;
+    padding: 12px 22px;
+    border: none;
+    display: inline-block;
+    cursor: pointer;
+  }
+  .download:hover { background: #fff; }
+
+  /* ── error ─────────────────────────────── */
+  .error-box {
+    display: none;
+    margin-top: 18px;
+    padding: 14px 16px;
+    border: 1px solid var(--warn);
+    color: var(--warn);
+    background: rgba(255, 107, 107, .06);
+    font-size: 13px;
+    animation: draw .3s ease-out both;
+  }
+  .error-box.active { display: block; }
+
+  /* ── spec sheet ────────────────────────── */
+  .spec {
+    margin-top: 56px;
+    animation: draw .6s .3s ease-out both;
+  }
+  .spec h2 {
+    font-size: 12px;
+    letter-spacing: .18em;
+    text-transform: uppercase;
+    color: rgba(232,240,255,.5);
+    margin-bottom: 10px;
+  }
+  .spec table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .spec th {
+    text-align: left;
+    font-weight: 400;
+    color: rgba(232,240,255,.45);
+    border-bottom: 1px solid var(--line);
+    padding: 8px 10px;
+    letter-spacing: .1em;
+  }
+  .spec td { padding: 8px 10px; border-bottom: 1px solid var(--line); }
+  .spec td:first-child { color: var(--accent); font-weight: 700; }
+  .spec .y { color: var(--ok); }
+  .spec .n { color: var(--warn); }
+
+  footer {
+    margin-top: 64px;
+    padding-top: 14px;
+    border-top: 1px solid var(--line);
+    font-size: 12px;
+    color: rgba(232,240,255,.4);
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  footer a { color: inherit; }
+
+  @keyframes draw {
+    from { opacity: 0; transform: translateY(14px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Format<span class="mark">·</span>Forge</h1>
+  </header>
+
+  <p class="subtitle">server-side image converter — JPG / PNG / GIF / BMP in, any of them out. files are converted in memory and never written to disk.</p>
+
+  <div class="dropzone" id="dropzone" tabindex="0" role="button" aria-label="Choose a file to convert">
+    <span class="dz-icon">⊞</span>
+    <span class="dz-main">drop an image here</span>
+    <span class="dz-sub">or click to browse — 10MB max</span>
+  </div>
+  <input type="file" id="file-input" accept=".png,.jpg,.jpeg,.gif,.bmp,image/*">
+
+  <div class="file-chip" id="file-chip">
+    <span class="chip-name" id="chip-name"></span>
+    <span class="chip-meta" id="chip-meta"></span>
+    <button class="chip-x" id="chip-x" type="button">✕</button>
+  </div>
+
+  <div class="target-row" id="target-row">
+    <span class="target-label">convert to →</span>
+    <button class="fmt-btn" data-fmt="png" type="button">PNG</button>
+    <button class="fmt-btn" data-fmt="jpg" type="button">JPG</button>
+    <button class="fmt-btn" data-fmt="gif" type="button">GIF</button>
+    <button class="fmt-btn" data-fmt="bmp" type="button">BMP</button>
+  </div>
+
+  <div class="go-row">
+    <button class="go" id="go" type="button" disabled>Forge It</button>
+  </div>
+
+  <div class="error-box" id="error-box"></div>
+
+  <div class="result" id="result">
+    <div class="result-head" id="result-head">✓ FORGED</div>
+    <div class="result-grid">
+      <img class="preview" id="preview" alt="converted preview">
+      <div class="result-meta">
+        <div class="result-name" id="result-name"></div>
+        <table>
+          <tr><td id="r-from"></td><td id="r-to"></td></tr>
+          <tr><td id="r-in-size"></td><td id="r-out-size"></td></tr>
+        </table>
+      </div>
+      <a class="download" id="download">⬇ Save</a>
+    </div>
+  </div>
+
+  <section class="spec">
+    <h2>// spec sheet</h2>
+    <table>
+      <thead>
+        <tr><th>format</th><th>reads</th><th>writes</th><th>keeps transparency</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>PNG</td><td class="y">yes</td><td class="y">yes</td><td class="y">yes</td></tr>
+        <tr><td>JPG</td><td class="y">yes</td><td class="y">yes</td><td class="n">no*</td></tr>
+        <tr><td>GIF</td><td class="y">yes</td><td class="y">yes</td><td class="y">yes</td></tr>
+        <tr><td>BMP</td><td class="y">yes</td><td class="y">yes</td><td class="y">yes</td></tr>
+      </tbody>
+    </table>
+    <p style="font-size:11px;color:rgba(232,240,255,.4);margin-top:8px">* JPG has no alpha channel — transparent pixels are composited onto white.</p>
+  </section>
+
+  <footer>
+    <span>FORMAT·FORGE — spring boot / ImageIO</span>
+    <a href="https://github.com/piccaj/file-converter" target="_blank" rel="noopener">github.com/piccaj/file-converter</a>
+  </footer>
+</main>
+
+<script>
+  const $ = (id) => document.getElementById(id);
+  const dropzone = $('dropzone');
+  const fileInput = $('file-input');
+  const chip = $('file-chip');
+  const chipName = $('chip-name');
+  const chipMeta = $('chip-meta');
+  const chipX = $('chip-x');
+  const fmtBtns = Array.from(document.querySelectorAll('.fmt-btn'));
+  const go = $('go');
+  const errorBox = $('error-box');
+  const result = $('result');
+  const preview = $('preview');
+  const resultName = $('result-name');
+  const rFrom = $('r-from');
+  const rTo = $('r-to');
+  const rInSize = $('r-in-size');
+  const rOutSize = $('r-out-size');
+  const download = $('download');
+
+  let file = null;
+  let target = null;
+
+  const humanSize = (bytes) => bytes < 1024
+    ? bytes + ' B'
+    : (bytes / 1024).toFixed(1) + ' KB';
+
+  function setFile(f) {
+    file = f;
+    errorBox.classList.remove('active');
+    result.classList.remove('active');
+    if (f) {
+      chipName.textContent = f.name;
+      chipMeta.textContent = humanSize(f.size);
+      chip.classList.add('active');
+    } else {
+      chip.classList.remove('active');
+    }
+    updateGo();
+  }
+
+  function updateGo() {
+    go.disabled = !(file && target);
+  }
+
+  dropzone.addEventListener('click', () => fileInput.click());
+  dropzone.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fileInput.click(); }
+  });
+  fileInput.addEventListener('change', () => setFile(fileInput.files[0]));
+  chipX.addEventListener('click', () => { setFile(null); fileInput.value = ''; });
+
+  ['dragenter', 'dragover'].forEach((evt) =>
+    dropzone.addEventListener(evt, (e) => {
+      e.preventDefault();
+      dropzone.classList.add('dragging');
+    }));
+  ['dragleave', 'drop'].forEach((evt) =>
+    dropzone.addEventListener(evt, (e) => {
+      e.preventDefault();
+      dropzone.classList.remove('dragging');
+    }));
+  dropzone.addEventListener('drop', (e) => setFile(e.dataTransfer.files[0]));
+
+  fmtBtns.forEach((btn) => btn.addEventListener('click', () => {
+    fmtBtns.forEach((b) => b.classList.remove('selected'));
+    btn.classList.add('selected');
+    target = btn.dataset.fmt;
+    updateGo();
+  }));
+
+  go.addEventListener('click', async () => {
+    if (!file || !target) return;
+    go.disabled = true;
+    go.textContent = 'Forging…';
+    errorBox.classList.remove('active');
+    result.classList.remove('active');
+
+    const body = new FormData();
+    body.append('file', file);
+    body.append('target', target);
+
+    try {
+      const res = await fetch('/api/convert', { method: 'POST', body });
+      if (!res.ok) {
+        let msg = 'conversion failed (' + res.status + ')';
+        try { msg = (await res.json()).error || msg; } catch { /* not json */ }
+        throw new Error(msg);
+      }
+      const blob = await res.blob();
+      const disposition = res.headers.get('Content-Disposition') || '';
+      const match = disposition.match(/filename="([^"]+)"/);
+      const name = match ? match[1] : 'converted.' + target;
+
+      resultName.textContent = name;
+      rFrom.textContent = file.type || 'unknown';
+      rTo.textContent = res.headers.get('Content-Type') || target;
+      rInSize.textContent = humanSize(file.size);
+      rOutSize.textContent = humanSize(blob.size);
+      preview.src = URL.createObjectURL(blob);
+      download.href = URL.createObjectURL(blob);
+      download.download = name;
+      result.classList.add('active');
+    } catch (err) {
+      errorBox.textContent = '✗ ' + err.message;
+      errorBox.classList.add('active');
+    } finally {
+      go.disabled = false;
+      go.textContent = 'Forge It';
+    }
+  });
+</script>
+</body>
+</html>
