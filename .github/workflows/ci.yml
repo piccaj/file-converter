@@ -19,8 +19,10 @@ jobs:
           java-version: '21'
           cache: maven
 
-      - name: Install native converters (ffmpeg, libheif)
-        run: sudo apt-get update -q && sudo apt-get install -y -q ffmpeg libheif-examples
+      - name: Install native converters (ffmpeg, libheif + codec plugins)
+        # Ubuntu's libheif loads decoders as runtime plugins; without
+        # libde265 (HEVC→HEIC) and aomdec (AV1→AVIF) it can't decode anything
+        run: sudo apt-get update -q && sudo apt-get install -y -q ffmpeg libheif-examples libheif-plugin-libde265 libheif-plugin-aomdec
 
       - name: Build and test
         run: mvn -B verify --file pom.xml
