@@ -28,8 +28,13 @@ public class NativeConverterService {
     private final String heifConvert;
 
     public NativeConverterService() {
-        this.ffmpeg = resolveBinary("ffmpeg", "FFMPEG_BIN");
-        this.heifConvert = resolveBinary("heif-convert", "HEIF_CONVERT_BIN");
+        this(System.getenv());
+    }
+
+    /** Test constructor: forces specific tool locations (e.g. absent tools). */
+    NativeConverterService(java.util.Map<String, String> env) {
+        this.ffmpeg = resolveBinary("ffmpeg", "FFMPEG_BIN", env);
+        this.heifConvert = resolveBinary("heif-convert", "HEIF_CONVERT_BIN", env);
         log.info("native tools: ffmpeg={}, heif-convert={}", ffmpeg, heifConvert);
     }
 
@@ -138,9 +143,9 @@ public class NativeConverterService {
     }
 
     /** Env override (FFMPEG_BIN/HEIF_CONVERT_BIN) wins; tests use it to point
-     *  at a pip-installed ffmpeg when the sandbox lacks the real package. */
-    private static String resolveBinary(String name, String envOverride) {
-        String override = System.getenv(envOverride);
+     *  at a pip-installed ffmpeg or to force a tool-absent state. */
+    private static String resolveBinary(String name, String envOverride, java.util.Map<String, String> env) {
+        String override = env.get(envOverride);
         if (override != null && !override.isBlank()) {
             return override;
         }

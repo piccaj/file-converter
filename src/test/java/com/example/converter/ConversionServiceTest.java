@@ -123,11 +123,18 @@ class ConversionServiceTest {
     }
 
     @Test
-    void heicInputWithoutImageMagickFailsWithClearError() throws Exception {
+    void heicInputWithoutHeifToolsFailsWithClearError() throws Exception {
         byte[] heic = fixture("sample.heic");
+        // force the "tool missing" state: env override points at a nonexistent
+        // binary, so this passes wherever heif-convert actually is installed
+        NativeConverterService bare = new NativeConverterService(
+                java.util.Map.of("HEIF_CONVERT_BIN", "/nonexistent/heif-convert",
+                        "FFMPEG_BIN", "/nonexistent/ffmpeg"));
+        ConversionService forcedAbsent = new ConversionService(bare);
+
         // detected as HEIC by magic bytes, then routed to the native tool,
-        // which is absent here — must surface a readable message, not a 500
-        assertThatThrownBy(() -> service.convert(heic, "png"))
+        // which is absent — must surface a readable message, not a 500
+        assertThatThrownBy(() -> forcedAbsent.convert(heic, "png"))
                 .isInstanceOf(UnsupportedConversionException.class)
                 .hasMessageContaining("heif-convert");
     }
